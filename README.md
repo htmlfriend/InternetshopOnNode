@@ -9,3 +9,4 @@
 7. Ajax
 8. fetch
 9. MySQL
+10. nodemailer
