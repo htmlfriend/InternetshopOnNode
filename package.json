@@ -1,0 +1,20 @@
+{
+  "name": "internetshoponnode",
+  "version": "1.0.0",
+  "description": "1. nodejs\r 2. express\r 3. pug\r 4. mustard UI\r 5. jsPromise\r 6. sweetAlert2\r 7. Ajax\r 8. fetch\r 9. MySQL\r 10. nodemailer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/htmlfriend/InternetshopOnNode.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/htmlfriend/InternetshopOnNode/issues"
+  },
+  "homepage": "https://github.com/htmlfriend/InternetshopOnNode#readme"
+}
