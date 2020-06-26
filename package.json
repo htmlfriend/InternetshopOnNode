@@ -4,7 +4,9 @@
   "description": "1. nodejs\r 2. express\r 3. pug\r 4. mustard UI\r 5. jsPromise\r 6. sweetAlert2\r 7. Ajax\r 8. fetch\r 9. MySQL\r 10. nodemailer",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js",
+    "debug": "set DEBUG=express:router & nodemon index.js",
+    "bug": " set DEBUG=http,mail,express:* & nodemon index.js"
   },
   "repository": {
     "type": "git",
@@ -16,5 +18,13 @@
   "bugs": {
     "url": "https://github.com/htmlfriend/InternetshopOnNode/issues"
   },
-  "homepage": "https://github.com/htmlfriend/InternetshopOnNode#readme"
+  "homepage": "https://github.com/htmlfriend/InternetshopOnNode#readme",
+  "devDependencies": {
+    "nodemon": "^2.0.4"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mysql": "^2.18.1",
+    "pug": "^3.0.0"
+  }
 }
