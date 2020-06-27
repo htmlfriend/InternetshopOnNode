@@ -1,8 +1,8 @@
 const express = require("express");
 const app = express();
 const mysql = require("mysql");
-
 app.use(express.static("public"));
+app.use(express.json());
 app.set("view engine", "pug");
 
 //conect to mysql base module
@@ -112,6 +112,25 @@ app.get("/cat", function (req, res) {
       goods: JSON.parse(JSON.stringify(value[1])),
     });
   });
+});
+
+app.post("/get-goods-info", (req, res) => {
+  console.log(req.body.key);
+  con.query(
+    "SELECT id, name, cost  FROM goods WHERE id IN(" +
+      req.body.key.join(",") +
+      ")",
+    function (error, result, fields) {
+      if (error) throw error;
+
+      let goods = {};
+      for (let i = 0; i < result.length; i++) {
+        goods[result[i]["id"]] = result[i];
+      }
+      console.log(goods);
+      res.json(goods);
+    }
+  );
 });
 
 app.listen(3000, () => {
