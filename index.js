@@ -2,8 +2,10 @@ const express = require("express");
 const app = express();
 const mysql = require("mysql");
 const nodemailer = require("nodemailer");
+const cookie = require("cookie");
 app.use(express.static("public"));
 app.use(express.json());
+app.use(express.urlencoded());
 app.set("view engine", "pug");
 
 //conect to mysql base module
@@ -14,6 +16,8 @@ let con = mysql.createPool({
   password: "123456",
   database: "marketshop",
 });
+
+// process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
 
 app.get("/", (req, res) => {
   let cat = new Promise(function (resolve, reject) {
@@ -52,7 +56,6 @@ app.get("/goods", function (req, res) {
     res.render("goods", {
       goods: JSON.parse(JSON.stringify(result)),
     });
-    console.log(JSON.parse(JSON.stringify(result)));
   });
 });
 
@@ -81,7 +84,8 @@ app.post("/finish-order", function (req, res) {
       "SELECT id, name, cost FROM goods WHERE id IN (" + key.join(",") + ")",
       function (error, result, fields) {
         if (error) throw error;
-        sendMail(req.body, result).catch(console.error);
+        // sendMail(req.body, result).catch(console.error);
+        saveOrder(req.body, result);
         res.send("1");
       }
     );
@@ -141,9 +145,115 @@ app.post("/get-goods-info", (req, res) => {
   }
 });
 
+app.get("/admin-order", function (req, res) {
+  let catId = req.query.id;
+  con.query(
+    `SELECT 
+		shop_order.user_id as user_id,
+		 shop_order.id as id,
+			shop_order.goods_id as goods_id,
+			 shop_order.goods_cost as goods_cost,
+				shop_order.goods_amount as goods_amount,
+				 shop_order.total as total,
+					from_unixtime(date, '%Y-%m-%d %h:%m') as human_date,
+					 user_info.user_name as user,
+						user_info.user_phone as phone, 
+						 user_info.address as address
+							FROM shop_order
+							 left join user_info on shop_order.user_id = user_info.id
+							  order by id DESC`,
+    function (error, result, fields) {
+      if (error) throw error;
+      res.render("admin-order", {
+        order: JSON.parse(JSON.stringify(result)),
+      });
+    }
+  );
+});
+
+app.get("/login", function (req, res) {
+  res.render("login", {});
+});
+
+app.get("/admin", function (req, res) {
+  res.render("admin", {});
+});
+
+app.post("/login", function (req, res) {
+  con.query(
+    'select * from user where login="' +
+      req.body.login +
+      '" and password="' +
+      req.body.password +
+      '"',
+    function (error, result) {
+      if (error) throw error;
+      // console.log(data[0]["id"]);
+      if (result.length == 0) {
+        res.redirect("/login");
+        // console.log("user not found");
+        // return false;
+      } else {
+        let data = JSON.parse(JSON.stringify(result));
+        res.cookie("hash", "blablabla");
+        //set cookie into the datebase
+        sql = "update user set hash='blablabla' where id =" + data[0]["id"];
+        con.query(sql, function (error, resultQuery) {
+          if (error) throw error;
+          res.redirect("/admin");
+        });
+      }
+    }
+  );
+});
+
 app.listen(3000, () => {
   console.log("I am working on 3000");
 });
+
+function saveOrder(data, result) {
+  // data - information about user
+  let sql;
+  sql =
+    "INSERT INTO user_info (user_name, user_phone, user_email, address) VALUES ('" +
+    data.username +
+    "','" +
+    data.phone +
+    "','" +
+    data.email +
+    "','" +
+    data.address +
+    "')";
+  "," + data.phone;
+  con.query(sql, function (error, resultGoods) {
+    if (error) throw error;
+    // need optimaze for big data
+    let userId = resultGoods.insertId;
+    for (let i = 0; i < result.length; i++) {
+      //date in milliseconds
+      date = new Date() / 1000;
+      sql =
+        "INSERT INTO shop_order (date, user_id, goods_id, goods_cost, goods_amount,total) VALUES (" +
+        date +
+        "," +
+        userId +
+        "," +
+        result[i]["id"] +
+        "," +
+        result[i]["cost"] +
+        "," +
+        data.key[result[i]["id"]] +
+        "," +
+        data.key[result[i]["id"]] * result[i]["cost"] +
+        ")";
+      con.query(sql, function (error, resultGoods) {
+        if (error) throw error;
+        console.log("I goods saved");
+      });
+    }
+  });
+  // result information about order
+}
 
 async function sendMail(data, result) {
   let res = "<h1>Order in online shop</h1>";
