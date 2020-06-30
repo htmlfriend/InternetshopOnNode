@@ -1,12 +1,14 @@
 const express = require("express");
 const app = express();
 const mysql = require("mysql");
+const nodemailer = require("nodemailer");
 app.use(express.static("public"));
 app.use(express.json());
 app.set("view engine", "pug");
 
 //conect to mysql base module
-let con = mysql.createConnection({
+// createConnection is offen down
+let con = mysql.createPool({
   host: "localhost",
   user: "root",
   password: "123456",
@@ -14,23 +16,30 @@ let con = mysql.createConnection({
 });
 
 app.get("/", (req, res) => {
-  try {
-    con.query(`SELECT * from goods`, function (error, result) {
-      if (error) throw error;
-      ///RowDAtaPacket - format is difficult. I changed it.
-      let goods = {};
-      for (let i = 0; i < result.length; i++) {
-        goods[result[i]["id"]] = result[i];
+  let cat = new Promise(function (resolve, reject) {
+    con.query(
+      "select id,name, cost, image, category from (select id,name,cost,image,category, if(if(@curr_category != category, @curr_category := category, '') != '', @k := 0, @k := @k + 1) as ind   from goods, ( select @curr_category := '' ) v ) goods where ind < 3",
+      function (error, result, field) {
+        if (error) return reject(error);
+        resolve(result);
       }
-      res.render("main", {
-        title: "main",
-        message: "hello world",
-        goods: JSON.parse(JSON.stringify(goods)),
-      });
+    );
+  });
+
+  let catDescription = new Promise(function (resolve, reject) {
+    con.query("select * from category", function (error, result, field) {
+      if (error) return reject(error);
+      resolve(result);
     });
-  } catch (error) {
-    console.log(error);
-  }
+  });
+
+  Promise.all([cat, catDescription]).then(function (value) {
+    res.render("index", {
+      title: "Internet Shop",
+      goods: JSON.parse(JSON.stringify(value[0])),
+      cat: JSON.parse(JSON.stringify(value[1])),
+    });
+  });
 });
 
 app.get("/goods", function (req, res) {
@@ -41,36 +50,17 @@ app.get("/goods", function (req, res) {
   ) {
     if (error) throw error;
     res.render("goods", {
-      title: "goods",
       goods: JSON.parse(JSON.stringify(result)),
     });
+    console.log(JSON.parse(JSON.stringify(result)));
   });
 });
 
-// app.get("/goods/*", function (req, res) {
-//   con.query(
-//     'SELECT * FROM goods WHERE slug="' + req.params["0"] + '"',
-//     function (error, result, fields) {
-//       if (error) throw error;
-//       // console.log(result);
-//       result = JSON.parse(JSON.stringify(result));
-//       // console.log(result[0]["id"]);
-//       con.query(
-//         "SELECT * FROM images WHERE goods_id=" + result[0]["id"],
-//         function (error, goodsImages, fields) {
-//           if (error) throw error;
-//           // console.log(goodsImages);
-//           goodsImages = JSON.parse(JSON.stringify(goodsImages));
-//           res.render("goods", { goods: result, goods_images: goodsImages });
-//         }
-//       );
-//     }
-//   );
-// });
-
-// app.get("/order", function (req, res) {
-//   res.render("order");
-// });
+app.get("/order", function (req, res) {
+  res.render("order", {
+    title: "Your order",
+  });
+});
 
 app.post("/get-category-list", (req, res) => {
   con.query("SELECT id, category FROM category", function (
@@ -79,9 +69,25 @@ app.post("/get-category-list", (req, res) => {
     fields
   ) {
     if (error) throw error;
-    console.log(result);
     res.json(result);
   });
+});
+
+app.post("/finish-order", function (req, res) {
+  if (req.body.key.length != 0) {
+    let key = Object.keys(req.body.key);
+
+    con.query(
+      "SELECT id, name, cost FROM goods WHERE id IN (" + key.join(",") + ")",
+      function (error, result, fields) {
+        if (error) throw error;
+        sendMail(req.body, result).catch(console.error);
+        res.send("1");
+      }
+    );
+  } else {
+    res.send("0");
+  }
 });
 
 app.get("/cat", function (req, res) {
@@ -115,24 +121,70 @@ app.get("/cat", function (req, res) {
 });
 
 app.post("/get-goods-info", (req, res) => {
-  console.log(req.body.key);
-  con.query(
-    "SELECT id, name, cost  FROM goods WHERE id IN(" +
-      req.body.key.join(",") +
-      ")",
-    function (error, result, fields) {
-      if (error) throw error;
+  if (req.body.key.length != 0) {
+    con.query(
+      "SELECT id, name, cost  FROM goods WHERE id IN(" +
+        req.body.key.join(",") +
+        ")",
+      function (error, result, fields) {
+        if (error) throw error;
 
-      let goods = {};
-      for (let i = 0; i < result.length; i++) {
-        goods[result[i]["id"]] = result[i];
+        let goods = {};
+        for (let i = 0; i < result.length; i++) {
+          goods[result[i]["id"]] = result[i];
+        }
+        res.json(goods);
       }
-      console.log(goods);
-      res.json(goods);
-    }
-  );
+    );
+  } else {
+    res.send("0");
+  }
 });
 
 app.listen(3000, () => {
   console.log("I am working on 3000");
 });
+
+async function sendMail(data, result) {
+  let res = "<h1>Order in online shop</h1>";
+  let total = 0;
+  for (let i = 0; i < result.length; i++) {
+    res += `<p>${result[i]["name"]} - ${data.key[result[i]["id"]]} 
+		- ${result[i]["cost"] * data.key[result[i]["id"]]} uah </p>`;
+    total += result[i]["cost"] * data.key[result[i]["id"]];
+  }
+  res += "<hr>";
+  res += `Total ${total} uah`;
+  res += `<hr><p>Phone : ${data.phone}</p>`;
+  res += `<hr><p>Username : ${data.username}</p>`;
+  res += `<hr><p>Address : ${data.address}</p>`;
+  res += `<hr><p>Emai : ${data.email}</p>`;
+
+  // Generate test SMTP service account from ethereal.email
+  // Only needed if you don't have a real mail account for testing
+  let testAccount = await nodemailer.createTestAccount();
+
+  // create reusable transporter object using the default SMTP transport
+  let transporter = nodemailer.createTransport({
+    host: "smtp.ethereal.email",
+    port: 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: testAccount.user, // generated ethereal user
+      pass: testAccount.pass, // generated ethereal password
+    },
+  });
+
+  let mailOption = {
+    from: "<user@mail.ru>",
+    to: "user@mail.ru," + data.email,
+    subject: "Online shop",
+    text: "Your order is made",
+    html: res,
+  };
+
+  let info = await transporter.sendMail(mailOption);
+  console.log("MessageSent: %s", info.messageId);
+  console.log("PreviewSent %s", nodemailer.getTestMessageUrl(info));
+  return true;
+}

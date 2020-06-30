@@ -20,6 +20,7 @@
 .site-header {
   height: auto;
   padding: 20px 0;
+  background: lightgreen;
 }
 
 .site-header h1 {
@@ -30,6 +31,7 @@
   width: 100%;
   margin: 0 auto;
   padding: 0;
+  background: lightgreen;
 }
 
 /* ------------card ------------------- */
@@ -54,13 +56,14 @@
 .site-nav {
   width: 300px;
   min-height: 100vh;
-  position: fixed;
+  position: absolute;
   left: -300px;
   top: 0;
   z-index: 999999;
   padding: 10px;
   transition: all ease 1s;
   color: #fff;
+  background: lightgreen;
 }
 
 .close-button-div {
@@ -84,4 +87,12 @@ ul.category-list a {
 }
 a {
   color: black;
+}
+
+.close-nav {
+  background: lightgray;
+}
+
+.footer {
+  background: #89d690;
 }
