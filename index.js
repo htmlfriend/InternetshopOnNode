@@ -3,11 +3,21 @@ const app = express();
 const mysql = require("mysql");
 const nodemailer = require("nodemailer");
 const cookie = require("cookie");
+const cookieParser = require("cookie-parser");
+let admin = require("./admin");
+const { json } = require("express");
 app.use(express.static("public"));
 app.use(express.json());
-app.use(express.urlencoded());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.set("view engine", "pug");
-
+app.use(function (req, res, next) {
+  if (req.originalUrl == "/admin" || req.originalUrl == "/admin-order") {
+    admin(req, res, con, next);
+  } else {
+    next();
+  }
+});
 //conect to mysql base module
 // createConnection is offen down
 let con = mysql.createPool({
@@ -22,7 +32,7 @@ let con = mysql.createPool({
 app.get("/", (req, res) => {
   let cat = new Promise(function (resolve, reject) {
     con.query(
-      "select id,name, cost, image, category from (select id,name,cost,image,category, if(if(@curr_category != category, @curr_category := category, '') != '', @k := 0, @k := @k + 1) as ind   from goods, ( select @curr_category := '' ) v ) goods where ind < 3",
+      "select id, slug, name, cost, image, category from (select id, slug, name,cost,image,category, if(if(@curr_category != category, @curr_category := category, '') != '', @k := 0, @k := @k + 1) as ind   from goods, ( select @curr_category := '' ) v ) goods where ind < 3",
       function (error, result, field) {
         if (error) return reject(error);
         resolve(result);
@@ -46,17 +56,26 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/goods", function (req, res) {
-  con.query("SELECT * FROM goods WHERE id=" + req.query.id, function (
-    error,
-    result,
-    fields
-  ) {
-    if (error) throw error;
-    res.render("goods", {
-      goods: JSON.parse(JSON.stringify(result)),
-    });
-  });
+app.get("/goods/*", function (req, res) {
+  con.query(
+    'SELECT * FROM goods WHERE slug="' + req.params["0"] + '"',
+    function (error, result, fields) {
+      if (error) throw error;
+      result = JSON.parse(JSON.stringify(result));
+      con.query(
+        "select * from images where goods_id=" + result[0]["id"],
+        function (error, goodsImages, field) {
+          if (error) throw error;
+          goodsImages = JSON.parse(JSON.stringify(goodsImages));
+
+          res.render("goods", {
+            goods: result,
+            goods_images: goodsImages,
+          });
+        }
+      );
+    }
+  );
 });
 
 app.get("/order", function (req, res) {
@@ -146,22 +165,21 @@ app.post("/get-goods-info", (req, res) => {
 });
 
 app.get("/admin-order", function (req, res) {
-  let catId = req.query.id;
   con.query(
     `SELECT 
-		shop_order.user_id as user_id,
-		 shop_order.id as id,
-			shop_order.goods_id as goods_id,
-			 shop_order.goods_cost as goods_cost,
-				shop_order.goods_amount as goods_amount,
-				 shop_order.total as total,
-					from_unixtime(date, '%Y-%m-%d %h:%m') as human_date,
-					 user_info.user_name as user,
-						user_info.user_phone as phone, 
-						 user_info.address as address
-							FROM shop_order
-							 left join user_info on shop_order.user_id = user_info.id
-							  order by id DESC`,
+			shop_order.user_id as user_id,
+			 shop_order.id as id,
+				shop_order.goods_id as goods_id,
+				 shop_order.goods_cost as goods_cost,
+					shop_order.goods_amount as goods_amount,
+					 shop_order.total as total,
+						from_unixtime(date, '%Y-%m-%d %h:%m') as human_date,
+						 user_info.user_name as user,
+							user_info.user_phone as phone, 
+							 user_info.address as address
+								FROM shop_order
+								 left join user_info on shop_order.user_id = user_info.id
+									order by id DESC`,
     function (error, result, fields) {
       if (error) throw error;
       res.render("admin-order", {
@@ -181,23 +199,26 @@ app.get("/admin", function (req, res) {
 
 app.post("/login", function (req, res) {
   con.query(
-    'select * from user where login="' +
+    'SELECT * FROM user WHERE login="' +
       req.body.login +
       '" and password="' +
       req.body.password +
       '"',
     function (error, result) {
-      if (error) throw error;
-      // console.log(data[0]["id"]);
+      if (error) reject(error);
       if (result.length == 0) {
+        // console.log("error user not found");
         res.redirect("/login");
-        // console.log("user not found");
-        // return false;
       } else {
-        let data = JSON.parse(JSON.stringify(result));
-        res.cookie("hash", "blablabla");
-        //set cookie into the datebase
-        sql = "update user set hash='blablabla' where id =" + data[0]["id"];
+        result = JSON.parse(JSON.stringify(result));
+        let hash = makeHash(32);
+        res.cookie("hash", hash);
+        res.cookie("id", result[0]["id"]);
+        /**
+         * write hash to db
+         */
+        sql =
+          "UPDATE user  SET hash='" + hash + "' WHERE id=" + result[0]["id"];
         con.query(sql, function (error, resultQuery) {
           if (error) throw error;
           res.redirect("/admin");
@@ -297,4 +318,15 @@ async function sendMail(data, result) {
   console.log("MessageSent: %s", info.messageId);
   console.log("PreviewSent %s", nodemailer.getTestMessageUrl(info));
   return true;
+}
+
+function makeHash(length) {
+  var result = "";
+  var characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  var charactersLength = characters.length;
+  for (var i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
 }

@@ -1,31 +1,36 @@
-
 include header
-include site_header
+
 div(class='wrap')
 	div(class='content')
 		header(class='site-header')
+			include site_header
 
 		div(class='container')
 			div(class='row')
 				div(class='col col-md-12')
-					h2(class='panel-title') #{goods[0]['name']}
-
-				div(class='col col-md-4')
+					h2(class="panel-title") #{goods[0]['name']}
+				div(class="col col-md-4")
 					img(
-						src='images/'+goods[0]['image']
-						class='goods-big-image'
+						src="/images/"+goods[0]['image']
+						class="goods-big-image"
 					)
+					div(class='row')
+						each val, index in goods_images
+							div(class='col col-md-6')
+								img(
+									src="/images/"+val['path']
+									class='goods-little-image'
+								)
 
-				div(class='col col-md-8')
-					h3 Description
+				div(class="col col-md-8")
 					p #{goods[0]['description']}
-					p(class='success') Price: #{goods[0]['cost'].toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$& ')} uah
-					button(
-						class='button-success add-to-cart'
+					span(class="success") Цена: #{goods[0]['cost'].toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$& ')} грн
+					a(
+						class="button button-primary add-to-cart"
 						data-goods_id=goods[0]['id']
-					) to card
-	include nav
-include footer	
+						href="/order"
+					) Купить
 
-
+		include nav
+	include footer
 
